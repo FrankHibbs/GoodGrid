@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f2e8">
+  <title>Good Grid — Sudoku</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="symbol-counts.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Good Grid home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>good<span class="brand-light">grid</span></span></a>
+      <div class="topbar-note"><span class="live-dot"></span> A little time for yourself</div>
+      <button class="icon-button" id="help-button" type="button" aria-label="How to play" title="How to play">?</button>
+    </header>
+
+    <section class="intro" aria-labelledby="page-title">
+      <div><p class="eyebrow">YOUR DAILY MOMENT OF CALM</p><h1 id="page-title">Find your <em>focus.</em></h1><p class="intro-copy">One square at a time. You’ve got this.</p></div>
+      <div class="timer-card" aria-label="Puzzle timer"><span class="timer-label"><span class="timer-icon" aria-hidden="true">◷</span> TIME PLAYING</span><span id="timer" class="timer-value">00:00</span></div>
+    </section>
+
+    <section class="game-layout" aria-label="Sudoku game">
+      <div class="board-column">
+        <div class="board-toolbar">
+          <div class="puzzle-tags"><span id="size-tag" class="tag tag-size">3x3 boxes</span><span id="difficulty-tag" class="tag tag-difficulty">Easy</span></div>
+          <button class="text-button" id="new-puzzle" type="button"><span aria-hidden="true">↻</span> New puzzle</button>
+        </div>
+        <div class="board-frame"><div id="board" class="board" role="grid" aria-label="Sudoku board"></div></div>
+        <section class="symbol-count-section" aria-label="Remaining symbols">
+          <div class="symbol-count-heading"><span>SYMBOLS LEFT</span><span>Fill all <b id="board-size-count">9</b> to complete a set</span></div>
+          <div id="symbol-counts" class="symbol-counts" aria-live="polite"></div>
+        </section>
+        <div id="message" class="message" aria-live="polite"></div>
+        <div class="board-footer"><span><span class="legend-dot clue-dot"></span> Given</span><span><span class="legend-dot entered-dot"></span> Your entry</span><span class="legend-note">Use your keyboard or the number pad</span></div>
+      </div>
+
+      <aside class="side-panel" aria-label="Puzzle controls">
+        <section class="control-card setup-card">
+          <div class="card-heading"><span class="step-mark">01</span><div><h2>Make it yours</h2><p>Pick your puzzle settings</p></div></div>
+          <label class="field-label" for="size-select">Puzzle Size</label>
+          <select id="size-select" class="select-control"><option value="3">3x3</option><option value="4">4x4</option><option value="5">5x5</option></select>
+          <div class="difficulty-heading"><span class="field-label">DIFFICULTY</span><span class="difficulty-hint">Find your pace</span></div>
+          <div class="difficulty-options" role="group" aria-label="Difficulty">
+            <button type="button" class="difficulty-option selected" data-difficulty="easy" aria-pressed="true"><span class="difficulty-emoji">☀</span><span>Easy</span></button>
+            <button type="button" class="difficulty-option" data-difficulty="medium" aria-pressed="false"><span class="difficulty-emoji">◒</span><span>Medium</span></button>
+            <button type="button" class="difficulty-option" data-difficulty="hard" aria-pressed="false"><span class="difficulty-emoji">✳</span><span>Hard</span></button>
+          </div>
+          <div class="separator"></div>
+          <label class="toggle-row" for="mistakes-toggle"><span class="toggle-copy"><strong>Show mistakes</strong><small>Highlight incorrect answers</small></span><input id="mistakes-toggle" type="checkbox" checked><span class="switch" aria-hidden="true"></span></label>
+        </section>
+
+        <section class="control-card play-card">
+          <div class="card-heading"><span class="step-mark step-mark-green">02</span><div><h2>Make a move</h2><p>Select a square, then choose</p></div></div>
+          <label class="toggle-row notes-toggle-row" for="notes-toggle"><span class="toggle-copy"><strong>✎ &nbsp;Notes mode</strong><small>Add little pencil marks</small></span><input id="notes-toggle" type="checkbox"><span class="switch" aria-hidden="true"></span></label>
+          <div id="number-pad" class="number-pad" aria-label="Number pad"></div>
+          <div class="action-buttons"><button id="undo-button" class="utility-button" type="button" disabled><span aria-hidden="true">↶</span> Undo</button><button id="erase-button" class="utility-button" type="button"><span aria-hidden="true">⌫</span> Erase</button></div>
+          <p class="shortcut-hint">Shortcuts: <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> move <kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>Z</kbd> undo</p>
+        </section>
+      </aside>
+    </section>
+    <footer class="page-footer"><span>MADE FOR A QUIETER KIND OF CHALLENGE</span><span>Take your time. <span aria-hidden="true">✳</span></span></footer>
+  </main>
+
+  <dialog id="help-dialog" class="help-dialog"><button id="close-help" type="button" class="dialog-close" aria-label="Close">×</button><p class="eyebrow">A QUICK GUIDE</p><h2>How to play</h2><p>Fill every square so each row, column, and outlined box contains each symbol exactly once.</p><p>Choose a square, then tap a symbol or type it on your keyboard. Turn on <strong>Notes mode</strong> to pencil in possibilities. Use <strong>Show mistakes</strong> to reveal or hide incorrect entries.</p><p>For 16×16 and 25×25 puzzles, symbols continue with letters after 9. The board scrolls horizontally on smaller screens to keep squares comfortable to read.</p><button id="got-it" class="primary-button" type="button">Got it</button></dialog>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,2 @@
+Create a website that allows people to play sudoku levels. I want there to be options to play 3x3, 4x4, and 5x5 sudoku. I also want there to be 3 difficulties for each type: easy, medium, and hard. Add a "New Puzzle" button that creates a new puzzle retaining the current size and difficulty. Add a timer function that resets every time a new puzzle is created. I would like the numbers to be color-coded. Use a light cream-colored background for the website. Design the website with rounded squares and rectangles as opposed to sharp 90-degree angles.
+
