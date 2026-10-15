@@ -13,12 +13,13 @@
   <link rel="stylesheet" href="responsive-header.css">
   <link rel="stylesheet" href="puzzle-symbols.css">
   <link rel="stylesheet" href="desktop-fit.css">
+  <link rel="stylesheet" href="screens.css">
 </head>
 <body>
   <main class="app-shell">
     <header class="topbar">
       <div class="brand-lockup">
-        <a class="brand" href="#" aria-label="Good Grid home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>good<span class="brand-light">grid</span></span></a>
+        <a class="brand" href="./" aria-label="Good Grid home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>good<span class="brand-light">grid</span></span></a>
         <h1 id="page-title" class="brand-subtitle">Find your focus</h1>
       </div>
       <div class="topbar-note"><span class="live-dot"></span> A little time for yourself</div>
@@ -28,11 +29,65 @@
       </div>
     </header>
 
-    <section class="game-layout" aria-label="Sudoku game">
+    <section id="home-screen" class="app-screen home-screen" aria-labelledby="home-heading">
+      <div class="home-content">
+        <p class="eyebrow">A PUZZLE FOR YOUR PACE</p>
+        <h2 id="home-heading">How would you like to play?</h2>
+        <p>Take on today’s shared challenge or enjoy a puzzle at your own pace.</p>
+        <div class="home-actions">
+          <button id="ranked-button" class="primary-button home-choice" type="button">Ranked<span>Daily challenges and leaderboard</span></button>
+          <button id="casual-button" class="secondary-button home-choice" type="button">Casual<span>Choose a size and difficulty</span></button>
+        </div>
+      </div>
+    </section>
+
+    <section id="ranked-screen" class="app-screen menu-screen" aria-labelledby="ranked-heading" hidden>
+      <div class="screen-heading"><button class="text-button back-button" data-go="home-screen" type="button">← Home</button><div><p class="eyebrow">SAME CHALLENGE FOR EVERYONE</p><h2 id="ranked-heading">Ranked daily puzzles</h2><p>All ranked challenges use Medium difficulty.</p></div></div>
+      <div class="ranked-account"><span id="ranked-account-label">Sign in to save ranked results.</span><button id="account-action" class="text-button" type="button">Sign in</button></div>
+      <button id="leaderboard-button" class="secondary-button leaderboard-entry" type="button">Leaderboard <span>View daily and all-time rankings</span></button>
+      <div class="daily-challenges" role="group" aria-label="Daily ranked challenge size">
+        <button class="challenge-card" data-ranked-size="3" type="button"><span class="challenge-size">3×3</span><span>Daily challenge</span><small>9×9 board · Medium</small></button>
+        <button class="challenge-card" data-ranked-size="4" type="button"><span class="challenge-size">4×4</span><span>Daily challenge</span><small>16×16 board · Medium</small></button>
+        <button class="challenge-card" data-ranked-size="5" type="button"><span class="challenge-size">5×5</span><span>Daily challenge</span><small>25×25 board · Medium</small></button>
+      </div>
+      <p id="ranked-status" class="screen-status" aria-live="polite"></p>
+    </section>
+
+    <section id="auth-screen" class="app-screen auth-screen" aria-labelledby="auth-heading" hidden>
+      <button class="text-button back-button" data-go="ranked-screen" type="button">← Ranked</button>
+      <div class="auth-card">
+        <p class="eyebrow">JOIN THE DAILY CHALLENGE</p><h2 id="auth-heading">Sign in or create an account</h2>
+        <div class="auth-tabs" role="tablist" aria-label="Account access">
+          <button id="login-tab" class="auth-tab selected" type="button" role="tab" aria-selected="true">Sign in</button>
+          <button id="signup-tab" class="auth-tab" type="button" role="tab" aria-selected="false">Create account</button>
+        </div>
+        <form id="auth-form">
+          <label id="username-field" class="auth-field" hidden>Username<input id="auth-username" name="username" autocomplete="username" minlength="3" maxlength="20" pattern="[A-Za-z0-9_]+" placeholder="3–20 letters, numbers, or _"></label>
+          <label class="auth-field">Email<input id="auth-email" name="email" type="email" autocomplete="email" required placeholder="you@example.com"></label>
+          <label class="auth-field">Password<input id="auth-password" name="password" type="password" autocomplete="current-password" required minlength="8" placeholder="At least 8 characters"></label>
+          <button id="auth-submit" class="primary-button auth-submit" type="submit">Sign in</button>
+        </form>
+        <button id="reset-password" class="text-button reset-password" type="button">Forgot password?</button>
+        <p id="auth-status" class="screen-status" aria-live="polite"></p>
+        <p class="auth-privacy">Your email is used for account access and recovery. Only your username appears on the leaderboard.</p>
+      </div>
+    </section>
+
+    <section id="leaderboard-screen" class="app-screen leaderboard-screen" aria-labelledby="leaderboard-heading" hidden>
+      <div class="screen-heading"><button class="text-button back-button" data-go="ranked-screen" type="button">← Ranked</button><div><p class="eyebrow">RANKED RESULTS</p><h2 id="leaderboard-heading">Leaderboard</h2><p>Fastest verified completion times rank first.</p></div></div>
+      <div class="leaderboard-filters">
+        <label>Ranking<select id="leaderboard-period"><option value="daily">Today’s challenge</option><option value="all-time">All-time best</option></select></label>
+        <label>Puzzle size<select id="leaderboard-size"><option value="3">3×3</option><option value="4">4×4</option><option value="5">5×5</option></select></label>
+      </div>
+      <div class="leaderboard-table-wrap"><table class="leaderboard-table"><thead><tr><th>Rank</th><th>Player</th><th>Time</th></tr></thead><tbody id="leaderboard-rows"><tr><td colspan="3">Connect Supabase to load rankings.</td></tr></tbody></table></div>
+      <p id="leaderboard-status" class="screen-status" aria-live="polite"></p>
+    </section>
+
+    <section id="game-screen" class="app-screen game-layout" aria-label="Sudoku game" hidden>
       <div class="board-column">
         <div class="board-toolbar">
           <div class="puzzle-tags"><span id="size-tag" class="tag tag-size">3x3 boxes</span><span id="difficulty-tag" class="tag tag-difficulty">Easy</span></div>
-          <button class="text-button" id="new-puzzle" type="button"><span aria-hidden="true">↻</span> New puzzle</button>
+          <div class="game-toolbar-actions"><button class="text-button back-button" id="game-back" type="button">← Back</button><button class="text-button" id="new-puzzle" type="button"><span aria-hidden="true">↻</span> New puzzle</button></div>
         </div>
         <div class="board-frame"><div id="board" class="board" role="grid" aria-label="Sudoku board"></div></div>
         <div id="message" class="message" aria-live="polite"></div>
@@ -67,6 +122,9 @@
   </main>
 
   <dialog id="help-dialog" class="help-dialog"><button id="close-help" type="button" class="dialog-close" aria-label="Close">×</button><p class="eyebrow">A QUICK GUIDE</p><h2>How to play</h2><p>Fill every square so each row, column, and outlined box contains each symbol exactly once.</p><p>Choose a square, then tap a symbol or type it on your keyboard. Turn on <strong>Notes mode</strong> to pencil in possibilities. Use <strong>Show mistakes</strong> to reveal or hide incorrect entries.</p><p>For 16×16 and 25×25 puzzles, symbols continue with letters after 9. The board scales to fit narrow screens.</p><button id="got-it" class="primary-button" type="button">Got it</button></dialog>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="supabase-config.js"></script>
+  <script src="supabase-client.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
