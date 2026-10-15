@@ -9,20 +9,24 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="symbol-counts.css">
+  <link rel="stylesheet" href="symbol-status.css">
+  <link rel="stylesheet" href="responsive-header.css">
+  <link rel="stylesheet" href="puzzle-symbols.css">
+  <link rel="stylesheet" href="desktop-fit.css">
 </head>
 <body>
   <main class="app-shell">
     <header class="topbar">
-      <a class="brand" href="#" aria-label="Good Grid home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>good<span class="brand-light">grid</span></span></a>
+      <div class="brand-lockup">
+        <a class="brand" href="#" aria-label="Good Grid home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>good<span class="brand-light">grid</span></span></a>
+        <h1 id="page-title" class="brand-subtitle">Find your focus</h1>
+      </div>
       <div class="topbar-note"><span class="live-dot"></span> A little time for yourself</div>
-      <button class="icon-button" id="help-button" type="button" aria-label="How to play" title="How to play">?</button>
+      <div class="topbar-actions">
+        <div class="timer-card" aria-label="Puzzle timer"><span class="timer-label"><span class="timer-icon" aria-hidden="true">◷</span> TIME PLAYING</span><span id="timer" class="timer-value">00:00</span></div>
+        <button class="icon-button" id="help-button" type="button" aria-label="How to play" title="How to play">?</button>
+      </div>
     </header>
-
-    <section class="intro" aria-labelledby="page-title">
-      <div><p class="eyebrow">YOUR DAILY MOMENT OF CALM</p><h1 id="page-title">Find your <em>focus.</em></h1><p class="intro-copy">One square at a time. You’ve got this.</p></div>
-      <div class="timer-card" aria-label="Puzzle timer"><span class="timer-label"><span class="timer-icon" aria-hidden="true">◷</span> TIME PLAYING</span><span id="timer" class="timer-value">00:00</span></div>
-    </section>
 
     <section class="game-layout" aria-label="Sudoku game">
       <div class="board-column">
@@ -31,10 +35,6 @@
           <button class="text-button" id="new-puzzle" type="button"><span aria-hidden="true">↻</span> New puzzle</button>
         </div>
         <div class="board-frame"><div id="board" class="board" role="grid" aria-label="Sudoku board"></div></div>
-        <section class="symbol-count-section" aria-label="Remaining symbols">
-          <div class="symbol-count-heading"><span>SYMBOLS LEFT</span><span>Fill all <b id="board-size-count">9</b> to complete a set</span></div>
-          <div id="symbol-counts" class="symbol-counts" aria-live="polite"></div>
-        </section>
         <div id="message" class="message" aria-live="polite"></div>
         <div class="board-footer"><span><span class="legend-dot clue-dot"></span> Given</span><span><span class="legend-dot entered-dot"></span> Your entry</span><span class="legend-note">Use your keyboard or the number pad</span></div>
       </div>
@@ -66,7 +66,7 @@
     <footer class="page-footer"><span>MADE FOR A QUIETER KIND OF CHALLENGE</span><span>Take your time. <span aria-hidden="true">✳</span></span></footer>
   </main>
 
-  <dialog id="help-dialog" class="help-dialog"><button id="close-help" type="button" class="dialog-close" aria-label="Close">×</button><p class="eyebrow">A QUICK GUIDE</p><h2>How to play</h2><p>Fill every square so each row, column, and outlined box contains each symbol exactly once.</p><p>Choose a square, then tap a symbol or type it on your keyboard. Turn on <strong>Notes mode</strong> to pencil in possibilities. Use <strong>Show mistakes</strong> to reveal or hide incorrect entries.</p><p>For 16×16 and 25×25 puzzles, symbols continue with letters after 9. The board scrolls horizontally on smaller screens to keep squares comfortable to read.</p><button id="got-it" class="primary-button" type="button">Got it</button></dialog>
+  <dialog id="help-dialog" class="help-dialog"><button id="close-help" type="button" class="dialog-close" aria-label="Close">×</button><p class="eyebrow">A QUICK GUIDE</p><h2>How to play</h2><p>Fill every square so each row, column, and outlined box contains each symbol exactly once.</p><p>Choose a square, then tap a symbol or type it on your keyboard. Turn on <strong>Notes mode</strong> to pencil in possibilities. Use <strong>Show mistakes</strong> to reveal or hide incorrect entries.</p><p>For 16×16 and 25×25 puzzles, symbols continue with letters after 9. The board scales to fit narrow screens.</p><button id="got-it" class="primary-button" type="button">Got it</button></dialog>
   <script src="app.js"></script>
 </body>
 </html>

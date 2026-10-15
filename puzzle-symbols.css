@@ -1,0 +1,57 @@
+/* Scale entered symbols to the available cell size for each board. */
+.board[data-size="9"] .cell {
+  font-size: clamp(15px, 2vw, 27px);
+}
+
+.board[data-size="16"] .cell {
+  font-size: clamp(13px, 1.5vw, 20px);
+}
+
+.board[data-size="25"] .cell {
+  font-size: clamp(12px, 1.4vw, 18px);
+}
+
+/* Increase contrast for the selected cell and its related cells. */
+.cell.selected {
+  background: #cbdcc2 !important;
+  box-shadow: inset 0 0 0 2px #4f7049;
+}
+
+.cell.related {
+  background: #e5e9d8;
+}
+
+.cell.same-value {
+  background: #d7e2cc;
+}
+
+/* Keep every board inside the available viewport on phones. */
+@media (max-width: 760px) {
+  .board-frame {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    padding: clamp(4px, 1.6vw, 9px);
+  }
+
+  .board,
+  .board[data-size="16"],
+  .board[data-size="25"] {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .board .cell {
+    font-size: clamp(7px, calc(88vw / var(--size)), 16px);
+  }
+
+  .board[data-size="16"] .cell,
+  .board[data-size="25"] .cell {
+    font-size: clamp(6px, calc(88vw / var(--size)), 13px);
+  }
+
+  .board .cell-notes {
+    font-size: clamp(4px, calc(35vw / var(--size)), 8px);
+  }
+}

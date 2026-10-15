@@ -19,8 +19,6 @@ const mistakesToggle = document.querySelector("#mistakes-toggle");
 const notesToggle = document.querySelector("#notes-toggle");
 const sizeTag = document.querySelector("#size-tag");
 const difficultyTag = document.querySelector("#difficulty-tag");
-const symbolCountElement = document.querySelector("#symbol-counts");
-const boardSizeCountElement = document.querySelector("#board-size-count");
 
 let boxSize = 3;
 let difficulty = "easy";
@@ -106,7 +104,7 @@ function renderNumberPad() {
   for (let value = 0; value < side; value += 1) {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = `pad-key ${symbolColor(value)}`;
+    button.className = `pad-key key-${(value % 9) + 1}`;
     button.textContent = symbolFor(value);
     button.setAttribute("aria-label", `Enter ${symbolFor(value)}`);
     button.addEventListener("click", () => enterValue(value));
@@ -164,7 +162,7 @@ function renderCells() {
       }
     }
   }
-  renderSymbolCounts(counts, complete);
+  renderSymbolPad(complete);
 }
 
 function symbolStatus() {
@@ -192,24 +190,8 @@ function symbolStatus() {
   return { counts, complete };
 }
 
-function renderSymbolCounts(counts, complete) {
-  symbolCountElement.style.setProperty("--size", side);
-  boardSizeCountElement.textContent = String(side);
-  symbolCountElement.replaceChildren();
+function renderSymbolPad(complete) {
   for (let value = 0; value < side; value += 1) {
-    const remaining = Math.max(0, side - counts[value]);
-    const item = document.createElement("span");
-    item.className = `symbol-count ${symbolColor(value)}${complete[value] ? " complete" : ""}`;
-    item.setAttribute("role", "listitem");
-    item.setAttribute("aria-label", `${symbolFor(value)}, ${remaining} remaining${complete[value] ? ", set complete" : ""}`);
-    const symbol = document.createElement("span");
-    symbol.className = "symbol-count-letter";
-    symbol.textContent = symbolFor(value);
-    const count = document.createElement("span");
-    count.className = "symbol-count-number";
-    count.textContent = String(remaining);
-    item.append(symbol, count);
-    symbolCountElement.append(item);
     const padKey = numberPad.children[value];
     if (padKey) padKey.classList.toggle("completed-value", complete[value]);
   }

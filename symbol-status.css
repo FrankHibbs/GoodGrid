@@ -1,0 +1,29 @@
+.cell.completed-value:not(.mistake) {
+  color: #a6a89f !important;
+  background: #eeeee9 !important;
+}
+
+.pad-key.key-1 { color: #4f524b; background: #e4f0ef; border-color: #c9dfdc; }
+.pad-key.key-2 { color: #4f524b; background: #f8eadf; border-color: #edd4c1; }
+.pad-key.key-3 { color: #4f524b; background: #efedf7; border-color: #dcd8eb; }
+.pad-key.key-4 { color: #4f524b; background: #edf1e4; border-color: #d9e1c9; }
+.pad-key.key-5 { color: #4f524b; background: #f8e9ed; border-color: #edcfd9; }
+.pad-key.key-6 { color: #4f524b; background: #e8eef5; border-color: #cfdae8; }
+.pad-key.key-7 { color: #4f524b; background: #f5eedf; border-color: #e8dcc0; }
+.pad-key.key-8 { color: #4f524b; background: #e8efe8; border-color: #d0dfd0; }
+.pad-key.key-9 { color: #4f524b; background: #f1eaf2; border-color: #dfd0e2; }
+.pad-key.key-1:hover { background: #d8e9e7; }
+.pad-key.key-2:hover { background: #f3dfd0; }
+.pad-key.key-3:hover { background: #e3e0f0; }
+.pad-key.key-4:hover { background: #e1e9d3; }
+.pad-key.key-5:hover { background: #f2dce3; }
+.pad-key.key-6:hover { background: #dce6f0; }
+.pad-key.key-7:hover { background: #eee3ca; }
+.pad-key.key-8:hover { background: #dce8dc; }
+.pad-key.key-9:hover { background: #e8ddec; }
+
+.pad-key.completed-value {
+  color: #a6a89f !important;
+  background: #eeeee9;
+  border-color: #e0e0d9;
+}
