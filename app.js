@@ -40,6 +40,7 @@ let startedAt = Date.now();
 let timerInterval;
 let completed = false;
 let playMode = "casual";
+let casualCompletionTimeout = null;
 let authSession = null;
 let authMode = "login";
 let pendingRankedSize = null;
@@ -269,10 +270,17 @@ function checkCompletion() {
   if (done) {
     completed = true;
     clearInterval(timerInterval);
-    messageElement.textContent = "Lovely work — puzzle complete!";
+    messageElement.textContent = "Congratulations! You completed the puzzle.";
     messageElement.classList.add("success");
+    clearTimeout(casualCompletionTimeout);
+    casualCompletionTimeout = setTimeout(() => {
+      casualCompletionTimeout = null;
+      newPuzzle();
+    }, 2000);
   } else if (completed) {
     completed = false;
+    clearTimeout(casualCompletionTimeout);
+    casualCompletionTimeout = null;
     startTimer();
     messageElement.textContent = "";
     messageElement.classList.remove("success");
@@ -300,6 +308,8 @@ function startTimerAt(timestamp) {
 }
 
 function newPuzzle() {
+  clearTimeout(casualCompletionTimeout);
+  casualCompletionTimeout = null;
   playMode = "casual";
   rankedAttemptId = null;
   rankedDate = null;
