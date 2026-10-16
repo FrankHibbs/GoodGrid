@@ -13,7 +13,7 @@ Ranked accounts, daily challenges, and leaderboard functions are prepared in thi
 
 In the Supabase dashboard, open **Authentication → URL Configuration**.
 
-- Set **Site URL** to the published site URL. For the current GitHub repository, that should be `https://teslaterrain.github.io/GoodGrid/` if the Pages site uses the default URL. Confirm the exact URL in the repository's **Settings → Pages** page.
+- Set **Site URL** to the published site URL. For the current GitHub repository, that should be `https://frankhibbs.github.io/GoodGrid/` if the Pages site uses the default URL. Confirm the exact URL in the repository's **Settings → Pages** page.
 - Add that same URL under **Redirect URLs**.
 - Add `http://localhost:8000/**` as a redirect URL if you run the local site on port 8000.
 - Email confirmation is enabled by default on many projects. Keep it enabled so new accounts confirm their email before ranked play.
