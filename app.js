@@ -51,6 +51,9 @@ let rankedDate = null;
 let rankedWrongCells = new Set();
 let rankedSubmissionPending = false;
 let rankedResultMs = null;
+let rankedElapsedMs = 0;
+let rankedResumedAt = null;
+let rankedPausePending = false;
 let previousMistakesSetting = true;
 
 function shuffle(items) {
@@ -223,7 +226,7 @@ function saveHistory(index) {
 }
 
 function enterValue(value) {
-  if (selected < 0 || completed || rankedSubmissionPending || puzzle[Math.floor(selected / side)][selected % side] !== -1) return;
+  if (selected < 0 || completed || rankedSubmissionPending || rankedPausePending || puzzle[Math.floor(selected / side)][selected % side] !== -1) return;
   saveHistory(selected);
   rankedWrongCells.delete(selected);
   if (notesToggle.checked) {
@@ -239,7 +242,7 @@ function enterValue(value) {
 }
 
 function eraseSelected() {
-  if (selected < 0 || completed || rankedSubmissionPending || puzzle[Math.floor(selected / side)][selected % side] !== -1) return;
+  if (selected < 0 || completed || rankedSubmissionPending || rankedPausePending || puzzle[Math.floor(selected / side)][selected % side] !== -1) return;
   if (values[selected] === -1 && notes[selected].size === 0) return;
   saveHistory(selected);
   values[selected] = -1;
@@ -250,6 +253,7 @@ function eraseSelected() {
 }
 
 function undo() {
+  if (rankedPausePending || rankedSubmissionPending) return;
   const previous = history.pop();
   if (!previous) return;
   values[previous.index] = previous.value;
@@ -307,6 +311,18 @@ function startTimerAt(timestamp) {
   }, 250);
 }
 
+function startRankedTimer(elapsedMs, resumedAt) {
+  clearInterval(timerInterval);
+  rankedElapsedMs = Math.max(0, Number(elapsedMs) || 0);
+  rankedResumedAt = Date.parse(resumedAt) || Date.now();
+  const update = () => {
+    const currentElapsed = rankedElapsedMs + Math.max(0, Date.now() - rankedResumedAt);
+    timerElement.textContent = formatTime(Math.floor(currentElapsed / 1000));
+  };
+  update();
+  timerInterval = setInterval(update, 250);
+}
+
 function newPuzzle() {
   clearTimeout(casualCompletionTimeout);
   casualCompletionTimeout = null;
@@ -316,6 +332,9 @@ function newPuzzle() {
   rankedWrongCells = new Set();
   rankedSubmissionPending = false;
   rankedResultMs = null;
+  rankedElapsedMs = 0;
+  rankedResumedAt = null;
+  rankedPausePending = false;
   setRankedControls(false);
   boxSize = Number(sizeSelect.value);
   side = boxSize * boxSize;
@@ -453,6 +472,7 @@ function startRankedGame(challenge) {
   rankedDate = challenge.date;
   rankedWrongCells = new Set();
   rankedSubmissionPending = false;
+  rankedPausePending = false;
   rankedResultMs = null;
   boxSize = Number(challenge.boxSize);
   side = boxSize * boxSize;
@@ -485,11 +505,59 @@ function startRankedGame(challenge) {
   messageElement.classList.remove("success");
   renderBoard();
   showScreen("game-screen");
-  startTimerAt(Date.parse(challenge.startedAt) || Date.now());
+  startRankedTimer(challenge.elapsedMs, challenge.resumedAt || challenge.startedAt);
   setStatus(rankedStatus, "");
 }
 
 let progressSaveTimer;
+async function leaveRankedGame(nextScreen) {
+  if (playMode !== "ranked" || !rankedAttemptId || completed) {
+    clearInterval(timerInterval);
+    showScreen(nextScreen);
+    return;
+  }
+  if (rankedPausePending) return;
+  if (rankedSubmissionPending) {
+    messageElement.textContent = "Please wait while your result is being verified.";
+    return;
+  }
+
+  rankedPausePending = true;
+  messageElement.textContent = "Saving progress and pausing your ranked puzzle…";
+  clearTimeout(progressSaveTimer);
+  const attemptId = rankedAttemptId;
+  const snapshot = {
+    values: [...values],
+    notes: notes.map(cellNotes => [...cellNotes]),
+    updatedAt: Date.now()
+  };
+  try { localStorage.setItem(`goodgrid-progress-${attemptId}`, JSON.stringify(snapshot)); }
+  catch { /* The server copy remains available if local storage is unavailable. */ }
+
+  try {
+    await supabaseClient.functions.invoke("ranked-progress", {
+      body: { attemptId, ...snapshot }
+    });
+    const { data, error } = await supabaseClient.functions.invoke("ranked-pause", {
+      body: { attemptId }
+    });
+    if (error || data?.error) {
+      messageElement.textContent = data?.error || error.message || "Could not pause this ranked puzzle. Please try again.";
+      return;
+    }
+
+    rankedElapsedMs = Math.max(0, Number(data.elapsedMs) || 0);
+    rankedResumedAt = null;
+    clearInterval(timerInterval);
+    timerElement.textContent = formatTime(Math.floor(rankedElapsedMs / 1000));
+    showScreen(nextScreen);
+  } catch (error) {
+    messageElement.textContent = error instanceof Error ? error.message : "Could not pause this ranked puzzle. Please try again.";
+  } finally {
+    rankedPausePending = false;
+  }
+}
+
 function scheduleRankedProgressSave() {
   if (playMode !== "ranked" || !rankedAttemptId || completed) return;
   clearTimeout(progressSaveTimer);
@@ -543,6 +611,8 @@ async function submitRankedBoard() {
   }
   completed = true;
   rankedResultMs = Number(data.elapsedMs);
+  rankedElapsedMs = rankedResultMs;
+  rankedResumedAt = null;
   try { localStorage.removeItem(`goodgrid-progress-${rankedAttemptId}`); }
   catch { /* Ignored when storage is unavailable. */ }
   clearInterval(timerInterval);
@@ -621,6 +691,10 @@ document.querySelector("#ranked-button").addEventListener("click", () => {
 
 document.querySelector(".brand").addEventListener("click", event => {
   event.preventDefault();
+  if (document.querySelector("#game-screen").hidden === false && playMode === "ranked") {
+    void leaveRankedGame("home-screen");
+    return;
+  }
   clearInterval(timerInterval);
   showScreen("home-screen");
 });
@@ -635,8 +709,12 @@ document.querySelectorAll(".back-button[data-go]").forEach(button => {
 });
 
 document.querySelector("#game-back").addEventListener("click", () => {
+  if (playMode === "ranked") {
+    void leaveRankedGame("ranked-screen");
+    return;
+  }
   clearInterval(timerInterval);
-  showScreen(playMode === "ranked" ? "ranked-screen" : "home-screen");
+  showScreen("home-screen");
 });
 
 document.querySelectorAll("[data-ranked-size]").forEach(button => {

@@ -42,7 +42,7 @@ Deno.serve(async request => {
     }
 
     let attemptQuery = await admin.from("ranked_attempts")
-      .select("id,started_at,status,elapsed_ms,progress")
+      .select("id,started_at,resumed_at,status,elapsed_ms,progress")
       .eq("user_id", user.id)
       .eq("challenge_date", challengeDate)
       .eq("box_size", boxSize)
@@ -54,15 +54,30 @@ Deno.serve(async request => {
       return jsonResponse({ error: "You have already completed this ranked challenge today." }, 409);
     }
     let resumed = Boolean(attempt);
+    if (attempt?.status === "paused") {
+      const resumeResult = await admin.rpc("resume_ranked_attempt", {
+        p_attempt_id: attempt.id,
+        p_user_id: user.id
+      });
+      if (resumeResult.error) throw resumeResult.error;
+      attemptQuery = await admin.from("ranked_attempts")
+        .select("id,started_at,resumed_at,status,elapsed_ms,progress")
+        .eq("user_id", user.id)
+        .eq("challenge_date", challengeDate)
+        .eq("box_size", boxSize)
+        .single();
+      if (attemptQuery.error || !attemptQuery.data) throw attemptQuery.error ?? new Error("Could not resume this ranked challenge.");
+      attempt = attemptQuery.data;
+    }
     if (!attempt) {
       const inserted = await admin.from("ranked_attempts")
         .insert({ user_id: user.id, challenge_date: challengeDate, box_size: boxSize })
-        .select("id,started_at,status,elapsed_ms,progress")
+        .select("id,started_at,resumed_at,status,elapsed_ms,progress")
         .single();
       if (inserted.error) {
         // A second tab may have created the unique daily attempt at the same time.
         attemptQuery = await admin.from("ranked_attempts")
-          .select("id,started_at,status,elapsed_ms,progress")
+          .select("id,started_at,resumed_at,status,elapsed_ms,progress")
           .eq("user_id", user.id)
           .eq("challenge_date", challengeDate)
           .eq("box_size", boxSize)
@@ -83,6 +98,8 @@ Deno.serve(async request => {
       progress: attempt.progress,
       attemptId: attempt.id,
       startedAt: attempt.started_at,
+      elapsedMs: attempt.elapsed_ms ?? 0,
+      resumedAt: attempt.resumed_at,
       resumed
     });
   } catch (error) {

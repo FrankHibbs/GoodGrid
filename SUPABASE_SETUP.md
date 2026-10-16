@@ -55,11 +55,12 @@ In the Supabase dashboard, open **Project Settings → Edge Functions → Secret
 
 These are server-side function settings. Never put `GOODGRID_SECRET_KEY` into the repository, browser configuration, or a message. The Edge Functions use it to perform privileged database operations after verifying the signed-in user.
 
-Then deploy the four functions from PowerShell:
+Then deploy the five functions from PowerShell:
 
 ```powershell
 npx supabase@latest functions deploy ranked-start
 npx supabase@latest functions deploy ranked-progress
+npx supabase@latest functions deploy ranked-pause
 npx supabase@latest functions deploy ranked-submit
 npx supabase@latest functions deploy leaderboard
 ```

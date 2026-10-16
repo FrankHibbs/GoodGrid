@@ -19,7 +19,7 @@ Deno.serve(async request => {
 
     const admin = adminClient();
     const { data: attempt, error: attemptError } = await admin.from("ranked_attempts")
-      .select("id,user_id,challenge_date,box_size,started_at,status")
+      .select("id,user_id,challenge_date,box_size,started_at,resumed_at,elapsed_ms,status")
       .eq("id", attemptId)
       .eq("user_id", user.id)
       .maybeSingle();
@@ -43,7 +43,8 @@ Deno.serve(async request => {
     const invalidIndices = values.flatMap((value: number, index: number) => value === solution[index] ? [] : [index]);
     if (invalidIndices.length) return jsonResponse({ valid: false, invalidIndices });
 
-    const elapsedMs = Math.max(1, Date.now() - Date.parse(attempt.started_at));
+    const activeSince = Date.parse(attempt.resumed_at || attempt.started_at);
+    const elapsedMs = Math.max(1, Number(attempt.elapsed_ms || 0) + Math.max(0, Date.now() - activeSince));
     const { data: finished, error: finishError } = await admin.rpc("finish_ranked_attempt", {
       p_attempt_id: attempt.id,
       p_user_id: user.id,
