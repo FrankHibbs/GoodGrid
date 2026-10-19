@@ -7,6 +7,8 @@ const CLUES = {
   medium: { 3: 32, 4: 155, 5: 425 },
   hard: { 3: 26, 4: 125, 5: 350 }
 };
+const APP_STATE_KEY = "goodgrid-app-state-v1";
+const CASUAL_STATE_KEY = "goodgrid-casual-state-v1";
 
 const boardElement = document.querySelector("#board");
 const sizeSelect = document.querySelector("#size-select");
@@ -37,6 +39,7 @@ let cells = [];
 let selected = -1;
 let history = [];
 let startedAt = Date.now();
+let casualElapsedMs = 0;
 let timerInterval;
 let completed = false;
 let playMode = "casual";
@@ -55,6 +58,10 @@ let rankedElapsedMs = 0;
 let rankedResumedAt = null;
 let rankedPausePending = false;
 let previousMistakesSetting = true;
+let casualCloudSaveTimer = null;
+let casualCloudSaveInFlight = Promise.resolve();
+let casualCloudSyncUserId = null;
+let casualCloudSyncPromise = null;
 
 function shuffle(items) {
   for (let i = items.length - 1; i > 0; i -= 1) {
@@ -139,6 +146,7 @@ function selectCell(index) {
   messageElement.textContent = "";
   messageElement.classList.remove("success");
   renderCells();
+  if (playMode === "casual") persistAppState();
 }
 
 function isWrong(index) {
@@ -238,6 +246,7 @@ function enterValue(value) {
   }
   renderCells();
   scheduleRankedProgressSave();
+  if (playMode === "casual") persistAppState();
   checkCompletion();
 }
 
@@ -250,6 +259,7 @@ function eraseSelected() {
   rankedWrongCells.delete(selected);
   renderCells();
   scheduleRankedProgressSave();
+  if (playMode === "casual") persistAppState();
 }
 
 function undo() {
@@ -262,6 +272,7 @@ function undo() {
   undoButton.disabled = history.length === 0;
   renderCells();
   scheduleRankedProgressSave();
+  if (playMode === "casual") persistAppState();
   checkCompletion();
 }
 
@@ -274,8 +285,11 @@ function checkCompletion() {
   if (done) {
     completed = true;
     clearInterval(timerInterval);
+    timerInterval = null;
+    casualElapsedMs = Math.max(0, Date.now() - startedAt);
     messageElement.textContent = "Congratulations! You completed the puzzle.";
     messageElement.classList.add("success");
+    persistAppState();
     clearTimeout(casualCompletionTimeout);
     casualCompletionTimeout = setTimeout(() => {
       casualCompletionTimeout = null;
@@ -304,11 +318,24 @@ function startTimer() {
 function startTimerAt(timestamp) {
   clearInterval(timerInterval);
   startedAt = timestamp;
-  timerElement.textContent = formatTime(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+  casualElapsedMs = Math.max(0, Date.now() - startedAt);
+  timerElement.textContent = formatTime(Math.floor(casualElapsedMs / 1000));
   timerInterval = setInterval(() => {
     if (rankedResultMs !== null) return;
-    timerElement.textContent = formatTime(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
-  }, 250);
+    casualElapsedMs = Math.max(0, Date.now() - startedAt);
+    timerElement.textContent = formatTime(Math.floor(casualElapsedMs / 1000));
+    if (playMode === "casual") {
+      const elapsedSeconds = Math.floor(casualElapsedMs / 1000);
+      persistAppState(undefined, { syncCloud: elapsedSeconds % 15 === 0 });
+    }
+  }, 1000);
+}
+
+function pauseCasualTimer() {
+  if (timerInterval) casualElapsedMs = Math.max(0, Date.now() - startedAt);
+  clearInterval(timerInterval);
+  timerInterval = null;
+  timerElement.textContent = formatTime(Math.floor(casualElapsedMs / 1000));
 }
 
 function startRankedTimer(elapsedMs, resumedAt) {
@@ -349,6 +376,7 @@ function newPuzzle() {
   messageElement.classList.remove("success");
   renderBoard();
   startTimer();
+  persistAppState();
 }
 
 function keyboardValue(key) {
@@ -358,7 +386,212 @@ function keyboardValue(key) {
 }
 
 function showScreen(id) {
+  const currentScreen = screens.find(screen => !screen.hidden);
+  if (currentScreen?.id === "game-screen" && id !== "game-screen" && playMode === "casual") {
+    pauseCasualTimer();
+  }
   screens.forEach(screen => { screen.hidden = screen.id !== id; });
+  persistAppState(id);
+}
+
+function scopedStorageKey(key) {
+  const userId = authSession?.user?.id;
+  return userId ? `${key}:${userId}` : key;
+}
+
+function persistAppState(screenId, { syncCloud = true } = {}) {
+  const activeScreen = screenId || screens.find(screen => !screen.hidden)?.id || "home-screen";
+  const state = {
+    screenId: activeScreen,
+    playMode,
+    boxSize,
+    difficulty,
+    authMode,
+    savedAt: Date.now()
+  };
+  if (playMode === "casual" && puzzle.length === side && solution.length === side && values.length === side * side) {
+    state.puzzle = puzzle.map(row => row.slice());
+    state.solution = solution.map(row => row.slice());
+    state.values = values.slice();
+    state.notes = notes.map(cellNotes => [...cellNotes]);
+    state.selected = selected;
+    state.elapsedMs = timerInterval ? Math.max(0, Date.now() - startedAt) : casualElapsedMs;
+    state.showMistakes = mistakesToggle.checked;
+    state.notesMode = notesToggle.checked;
+    state.savedAt = Date.now();
+  }
+  if (playMode === "ranked") state.rankedSize = boxSize;
+  try {
+    localStorage.setItem(scopedStorageKey(APP_STATE_KEY), JSON.stringify(state));
+  }
+  catch { /* Saving still works for this session when browser storage is unavailable. */ }
+  if (state.playMode === "casual" && state.puzzle) {
+    try { localStorage.setItem(scopedStorageKey(CASUAL_STATE_KEY), JSON.stringify(state)); }
+    catch { /* The cloud copy can still be saved when local storage is unavailable. */ }
+    if (syncCloud && authSession?.user?.id && supabaseClient) queueCasualCloudSave(state);
+  }
+}
+
+function readAppState() {
+  try { return JSON.parse(localStorage.getItem(scopedStorageKey(APP_STATE_KEY)) || "null"); }
+  catch { return null; }
+}
+
+function readCasualState() {
+  try {
+    const stored = localStorage.getItem(scopedStorageKey(CASUAL_STATE_KEY));
+    if (stored) return JSON.parse(stored);
+    const appState = readAppState();
+    return appState?.playMode === "casual" && appState.puzzle ? appState : null;
+  } catch { return null; }
+}
+
+function queueCasualCloudSave(state) {
+  const userId = authSession?.user?.id;
+  if (!userId) return;
+  clearTimeout(casualCloudSaveTimer);
+  casualCloudSaveTimer = setTimeout(() => {
+    casualCloudSaveInFlight = casualCloudSaveInFlight
+      .catch(() => {})
+      .then(() => writeCasualCloudSave(state, userId));
+  }, 700);
+}
+
+async function writeCasualCloudSave(state, userId = authSession?.user?.id) {
+  if (!userId || authSession?.user?.id !== userId || !supabaseClient || !state?.puzzle) return;
+  const { error } = await supabaseClient.from("casual_saves").upsert({
+    user_id: userId,
+    save_data: state
+  }, { onConflict: "user_id" });
+  if (error) console.warn("Could not sync casual puzzle progress.", error.message);
+}
+
+function syncCasualCloudSave(session, guestSave) {
+  if (!session?.user?.id || !supabaseClient) return Promise.resolve();
+  const userId = session.user.id;
+  if (casualCloudSyncUserId === userId && casualCloudSyncPromise) return casualCloudSyncPromise;
+  casualCloudSyncUserId = userId;
+  casualCloudSyncPromise = loadAndSyncCasualCloudSave(session, guestSave).catch(error => {
+    console.warn("Could not sync casual puzzle progress.", error);
+  });
+  return casualCloudSyncPromise;
+}
+
+async function loadAndSyncCasualCloudSave(session, guestSave) {
+  const userId = session.user.id;
+  const { data, error } = await supabaseClient.from("casual_saves")
+    .select("save_data,updated_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) {
+    console.warn("Could not load casual puzzle progress from Supabase.", error.message);
+    return;
+  }
+  if (authSession?.user?.id !== userId) return;
+
+  const localSave = readCasualState();
+  const remoteSave = data?.save_data;
+  const localSavedAt = Number(localSave?.savedAt) || 0;
+  const remoteSavedAt = Date.parse(data?.updated_at) || Number(remoteSave?.savedAt) || 0;
+  let selectedSave;
+  if (remoteSave && localSave && localSavedAt > remoteSavedAt) selectedSave = localSave;
+  else if (remoteSave) selectedSave = { ...remoteSave, savedAt: remoteSavedAt || Number(remoteSave.savedAt) || 0 };
+  else selectedSave = localSave || guestSave || null;
+  if (!selectedSave?.puzzle) return;
+
+  try { localStorage.setItem(scopedStorageKey(CASUAL_STATE_KEY), JSON.stringify(selectedSave)); }
+  catch { /* Keep the in-memory and server copies when local storage is unavailable. */ }
+  if (!remoteSave || selectedSave === localSave || selectedSave === guestSave) {
+    await writeCasualCloudSave(selectedSave, userId);
+  }
+
+  const appState = readAppState();
+  if (!appState || remoteSavedAt > (Number(appState.savedAt) || 0)) {
+    try { localStorage.setItem(scopedStorageKey(APP_STATE_KEY), JSON.stringify(selectedSave)); }
+    catch { /* The casual save remains available through its dedicated local key. */ }
+  }
+}
+
+function restoreCasualPuzzle(state) {
+  const targetBoxSize = Number(state?.boxSize);
+  const targetSide = targetBoxSize * targetBoxSize;
+  const isValid = [3, 4, 5].includes(targetBoxSize)
+    && Array.isArray(state.puzzle) && state.puzzle.length === targetSide
+    && state.puzzle.every(row => Array.isArray(row) && row.length === targetSide)
+    && Array.isArray(state.solution) && state.solution.length === targetSide
+    && state.solution.every(row => Array.isArray(row) && row.length === targetSide)
+    && Array.isArray(state.values) && state.values.length === targetSide * targetSide;
+  if (!isValid) return false;
+
+  playMode = "casual";
+  rankedAttemptId = null;
+  savedCasualSettings = null;
+  setRankedControls(false);
+  boxSize = targetBoxSize;
+  side = targetSide;
+  difficulty = ["easy", "medium", "hard"].includes(state.difficulty) ? state.difficulty : "easy";
+  sizeSelect.value = String(boxSize);
+  difficultyButtons.forEach(button => {
+    const active = button.dataset.difficulty === difficulty;
+    button.classList.toggle("selected", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  previousMistakesSetting = state.showMistakes !== false;
+  mistakesToggle.checked = previousMistakesSetting;
+  notesToggle.checked = state.notesMode === true;
+  puzzle = state.puzzle.map(row => row.slice());
+  solution = state.solution.map(row => row.slice());
+  values = state.values.map(value => Number.isInteger(value) && value >= -1 && value < side ? value : -1);
+  notes = Array.from({ length: side * side }, (_, index) => new Set(
+    Array.isArray(state.notes?.[index]) ? state.notes[index].filter(value => Number.isInteger(value) && value >= 0 && value < side) : []
+  ));
+  selected = Number.isInteger(state.selected) && state.selected >= 0 && state.selected < side * side ? state.selected : -1;
+  history = [];
+  completed = values.every((value, index) => value === solution[Math.floor(index / side)][index % side]);
+  casualElapsedMs = Math.max(0, Number(state.elapsedMs) || 0);
+  undoButton.disabled = true;
+  sizeTag.textContent = `${boxSize}x${boxSize} boxes`;
+  difficultyTag.textContent = difficulty[0].toUpperCase() + difficulty.slice(1);
+  messageElement.textContent = completed ? "Congratulations! You completed the puzzle." : "Your casual puzzle has been restored.";
+  messageElement.classList.toggle("success", completed);
+  renderBoard();
+  showScreen("game-screen");
+  if (completed) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    timerElement.textContent = formatTime(Math.floor(casualElapsedMs / 1000));
+    clearTimeout(casualCompletionTimeout);
+    casualCompletionTimeout = setTimeout(() => {
+      casualCompletionTimeout = null;
+      newPuzzle();
+    }, 2000);
+  } else {
+    startTimerAt(Date.now() - casualElapsedMs);
+  }
+  return true;
+}
+
+async function restoreAppPage() {
+  const state = readAppState();
+  if (!state) return;
+  if (rankedAttemptId || pendingRankedSize) return;
+  if (state.playMode === "casual" && state.screenId === "game-screen" && restoreCasualPuzzle(readCasualState() || state)) return;
+  if (state.playMode === "ranked" && state.screenId === "game-screen" && [3, 4, 5].includes(Number(state.rankedSize))) {
+    await startRankedAttempt(Number(state.rankedSize));
+    return;
+  }
+  playMode = state.playMode === "ranked" ? "ranked" : "casual";
+  boxSize = Number(state.rankedSize || state.boxSize) || 3;
+  side = boxSize * boxSize;
+  if (["easy", "medium", "hard"].includes(state.difficulty)) difficulty = state.difficulty;
+  sizeSelect.value = String(boxSize);
+  difficultyButtons.forEach(button => {
+    const active = button.dataset.difficulty === difficulty;
+    button.classList.toggle("selected", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  if (state.screenId === "auth-screen" && ["login", "signup", "recovery"].includes(state.authMode)) setAuthMode(state.authMode);
+  if (state.screenId && screens.some(screen => screen.id === state.screenId)) showScreen(state.screenId);
 }
 
 function setStatus(element, message, isError = false) {
@@ -663,8 +896,14 @@ async function loadLeaderboard() {
 }
 
 async function refreshSession(session) {
+  const guestSave = !authSession && session ? readCasualState() : null;
+  if (!session) {
+    casualCloudSyncUserId = null;
+    casualCloudSyncPromise = null;
+  }
   authSession = session;
   updateAccountStatus();
+  if (authSession) await syncCasualCloudSave(authSession, guestSave);
   if (authSession && pendingRankedSize) {
     const size = pendingRankedSize;
     pendingRankedSize = null;
@@ -678,7 +917,7 @@ async function initializeAuth() {
   updateAccountStatus();
   if (!supabaseClient) return;
   supabaseClient.auth.onAuthStateChange((_event, session) => {
-    void refreshSession(session);
+    setTimeout(() => { void refreshSession(session); }, 0);
   });
   const { data } = await supabaseClient.auth.getSession();
   await refreshSession(data.session);
@@ -700,6 +939,8 @@ document.querySelector(".brand").addEventListener("click", event => {
 });
 
 document.querySelector("#casual-button").addEventListener("click", () => {
+  const state = readCasualState();
+  if (state && restoreCasualPuzzle(state)) return;
   showScreen("game-screen");
   newPuzzle();
 });
@@ -753,21 +994,36 @@ document.querySelector("#auth-form").addEventListener("submit", async event => {
   submit.disabled = true;
   setStatus(authStatus, authMode === "signup" ? "Creating your account…" : authMode === "recovery" ? "Updating your password…" : "Signing in…");
   let result;
-  if (authMode === "signup") {
-    const username = document.querySelector("#auth-username").value.trim();
-    result = await supabaseClient.auth.signUp({
-      email,
-      password,
-      options: { data: { username }, emailRedirectTo: window.location.href }
-    });
-  } else if (authMode === "recovery") {
-    result = await supabaseClient.auth.updateUser({ password });
-  } else {
-    result = await supabaseClient.auth.signInWithPassword({ email, password });
+  let signupSlowTimer;
+  try {
+    if (authMode === "signup") {
+      const username = document.querySelector("#auth-username").value.trim();
+      signupSlowTimer = setTimeout(() => {
+        setStatus(authStatus, "Account creation is still waiting for the confirmation email service. Keep this page open and avoid submitting again.");
+      }, 10000);
+      result = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: { data: { username }, emailRedirectTo: window.location.href }
+      });
+    } else if (authMode === "recovery") {
+      result = await supabaseClient.auth.updateUser({ password });
+    } else {
+      result = await supabaseClient.auth.signInWithPassword({ email, password });
+    }
+  } catch (error) {
+    setStatus(authStatus, error instanceof Error ? error.message : "The request could not be completed. Check your connection and try again.", true);
+    return;
+  } finally {
+    clearTimeout(signupSlowTimer);
+    submit.disabled = false;
   }
-  submit.disabled = false;
   if (result.error) {
-    setStatus(authStatus, result.error.message, true);
+    const errorMessage = result.error.message || "The request could not be completed.";
+    const isEmailRateLimit = /email rate limit exceeded|over_email_send_rate_limit/i.test(errorMessage);
+    setStatus(authStatus, isEmailRateLimit
+      ? "Confirmation email limit reached. Wait before retrying, and check your inbox and spam folder for an earlier email. The site owner can configure custom SMTP for higher limits."
+      : errorMessage, true);
   } else if (authMode === "signup" && !result.data.session) {
     setStatus(authStatus, "Account created. Check your email to confirm, then return here to sign in.");
   } else if (authMode === "recovery") {
@@ -860,4 +1116,15 @@ document.querySelector("#close-help").addEventListener("click", () => helpDialog
 document.querySelector("#got-it").addEventListener("click", () => helpDialog.close());
 helpDialog.addEventListener("click", event => { if (event.target === helpDialog) helpDialog.close(); });
 
-initializeAuth();
+window.addEventListener("pagehide", () => {
+  if (playMode === "casual" && document.querySelector("#game-screen").hidden === false) pauseCasualTimer();
+  persistAppState();
+  if (authSession?.user?.id) {
+    const userId = authSession.user.id;
+    clearTimeout(casualCloudSaveTimer);
+    const save = readCasualState();
+    if (save) casualCloudSaveInFlight = casualCloudSaveInFlight.catch(() => {}).then(() => writeCasualCloudSave(save, userId));
+  }
+});
+
+void initializeAuth().then(restoreAppPage);

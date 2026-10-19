@@ -43,7 +43,7 @@ npx supabase@latest link --project-ref YOUR_PROJECT_REF
 npx supabase@latest db push
 ```
 
-Find the project reference in the project URL, between `https://` and `.supabase.co`. `db push` applies the SQL migration in `supabase/migrations/`, which creates the profiles, daily challenge, attempt, and leaderboard tables and their access rules.
+Find the project reference in the project URL, between `https://` and `.supabase.co`. `db push` applies the SQL migrations in `supabase/migrations/`, which create the profiles, daily challenge, attempt, leaderboard, and signed-in casual-save tables with their access rules. Casual progress for signed-out visitors stays in the browser; signed-in players' casual progress syncs through the owner-only `casual_saves` table.
 
 ## 5. Add Edge Function secrets and deploy
 
