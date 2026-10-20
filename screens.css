@@ -142,14 +142,14 @@
 .screen-status { min-height: 18px; margin: 12px 0 0; color: #65775e; font-size: 12px; }
 .screen-status.error { color: #b45045; }
 
-.auth-screen { width: min(100%, 510px); justify-self: center; padding: 24px; }
-.auth-card { margin-top: 18px; padding: clamp(20px, 4vw, 32px); border: 1px solid #eee9de; border-radius: 16px; background: #fffdf8; box-shadow: var(--shadow); }
+.auth-screen { width: min(100%, 510px); justify-self: center; min-height: 0; display: flex; flex-direction: column; justify-content: center; overflow: hidden; padding: clamp(8px, 2vh, 18px) 24px; }
+.auth-card { width: 100%; margin: 8px auto; padding: clamp(16px, 3vh, 26px) clamp(18px, 4vw, 32px); border: 1px solid #eee9de; border-radius: 16px; background: #fffdf8; box-shadow: var(--shadow); }
 .auth-card h2 { font-size: 23px; }
-.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin: 20px 0; border-radius: 9px; background: #f4f1e8; }
+.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin: 14px 0; border-radius: 9px; background: #f4f1e8; }
 .auth-tabs[hidden] { display: none; }
 .auth-tab { border: 0; border-radius: 7px; padding: 9px; background: transparent; color: #818276; font: 600 11px "DM Sans", sans-serif; cursor: pointer; }
 .auth-tab.selected { background: #fffdf8; color: #526b4d; box-shadow: 0 1px 4px #55462b12; }
-.auth-field { display: grid; gap: 6px; margin: 0 0 13px; color: #77796d; font-size: 10px; font-weight: 700; }
+.auth-field { display: grid; gap: 5px; margin: 0 0 10px; color: #77796d; font-size: 10px; font-weight: 700; }
 .auth-field[hidden] { display: none; }
 .auth-field input,
 .leaderboard-filters select {
@@ -166,7 +166,8 @@
 .leaderboard-filters select:focus { outline: 2px solid #9bad8f; outline-offset: 1px; }
 .auth-submit { width: 100%; }
 .reset-password { display: block; margin: 12px auto 0; }
-.auth-privacy { margin: 14px 0 0; color: #99988b; font-size: 10px; line-height: 1.5; text-align: center; }
+.auth-privacy { margin: 10px 0 0; color: #99988b; font-size: 10px; line-height: 1.45; text-align: center; }
+.auth-screen .screen-status { min-height: 34px; line-height: 1.4; overflow-wrap: anywhere; }
 
 .leaderboard-filters { display: flex; gap: 12px; margin-bottom: 16px; }
 .leaderboard-filters label { display: grid; gap: 6px; width: min(220px, 50%); color: #77796d; font-size: 10px; font-weight: 700; }
@@ -192,11 +193,30 @@
   .play-card { order: -1; }
   .screen-heading { grid-template-columns: 1fr; gap: 13px; }
   .menu-screen,
-  .leaderboard-screen,
-  .auth-screen { padding: 18px 0; }
+  .leaderboard-screen { padding: 18px 0; }
+  .auth-screen { width: 100%; min-height: calc(100dvh - 61px); padding: 8px 0; }
+  .auth-card { margin-block: auto; padding: 17px 16px; }
+  .auth-tabs { margin: 12px 0; }
+  .auth-field { margin-bottom: 9px; }
+  .auth-field input { padding: 9px; }
+  .auth-privacy { margin-top: 7px; }
   .leaderboard-filters { gap: 8px; }
   .leaderboard-table th,
   .leaderboard-table td { padding: 10px; }
+}
+
+@media (max-height: 680px) {
+  .auth-screen { padding-block: 4px; }
+  .auth-card { margin-block: 4px; padding-block: 12px; }
+  .auth-card .eyebrow { margin-bottom: 5px; }
+  .auth-card h2 { font-size: 20px; }
+  .auth-tabs { margin-block: 8px; }
+  .auth-tab { padding-block: 7px; }
+  .auth-field { gap: 3px; margin-bottom: 7px; }
+  .auth-field input { padding-block: 7px; }
+  .reset-password { margin-top: 7px; }
+  .auth-screen .screen-status { min-height: 30px; margin-top: 6px; }
+  .auth-privacy { margin-top: 5px; font-size: 9px; }
 }
 
 /* Some social in-app browsers report a desktop-sized layout viewport on phones.
@@ -225,7 +245,8 @@
     max-width: 510px;
     min-width: 0;
     margin-inline: auto;
-    padding: 18px 0;
+    min-height: calc(100dvh - 61px);
+    padding: 8px 0;
   }
 
   .auth-card,
