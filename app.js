@@ -9,6 +9,7 @@ const CLUES = {
 };
 const APP_STATE_KEY = "goodgrid-app-state-v1";
 const CASUAL_STATE_KEY = "goodgrid-casual-state-v1";
+const AUTOCOMPLETE_TESTER_EMAIL = "nhibbert@ithaca.edu";
 
 const boardElement = document.querySelector("#board");
 const sizeSelect = document.querySelector("#size-select");
@@ -607,6 +608,63 @@ function updateAccountStatus() {
   action.textContent = authSession ? "Sign out" : "Sign in";
 }
 
+function canUsePuzzleAutocomplete() {
+  return authSession?.user?.email?.trim().toLowerCase() === AUTOCOMPLETE_TESTER_EMAIL;
+}
+
+function updateAutocompleteAccess() {
+  const button = document.querySelector("#autocomplete-button");
+  if (button) button.hidden = !canUsePuzzleAutocomplete();
+}
+
+async function autocompletePuzzle() {
+  if (!canUsePuzzleAutocomplete() || completed || rankedPausePending || rankedSubmissionPending) return;
+  const button = document.querySelector("#autocomplete-button");
+  button.disabled = true;
+  try {
+    if (playMode === "ranked") {
+      if (!rankedAttemptId || !supabaseClient) throw new Error("This ranked attempt is not ready for autocomplete.");
+      messageElement.textContent = "Loading the test solution and pausing this ranked attempt…";
+      const { data, error } = await supabaseClient.functions.invoke("ranked-autocomplete", {
+        body: { attemptId: rankedAttemptId }
+      });
+      if (error || data?.error) throw new Error(data?.error || error.message || "Could not autocomplete this ranked puzzle.");
+      if (!Array.isArray(data.solution) || data.solution.length !== side * side) throw new Error("The ranked test solution could not be loaded.");
+      values = data.solution.slice();
+      rankedElapsedMs = Math.max(0, Number(data.elapsedMs) || 0);
+      rankedResumedAt = null;
+      completed = true;
+      clearInterval(timerInterval);
+      timerInterval = null;
+      timerElement.textContent = formatTime(Math.floor(rankedElapsedMs / 1000));
+      try { localStorage.removeItem(`goodgrid-progress-${rankedAttemptId}`); }
+      catch { /* The server attempt is paused even when local storage is unavailable. */ }
+      messageElement.textContent = "Test puzzle completed. The ranked attempt is paused and was not submitted to the leaderboard.";
+      messageElement.classList.add("success");
+      selected = -1;
+      history = [];
+      notes = Array.from({ length: side * side }, () => new Set());
+      undoButton.disabled = true;
+      renderCells();
+      return;
+    }
+
+    values = solution.flat();
+    selected = -1;
+    history = [];
+    notes = Array.from({ length: side * side }, () => new Set());
+    undoButton.disabled = true;
+    renderCells();
+    persistAppState();
+    checkCompletion();
+  } catch (error) {
+    messageElement.textContent = error instanceof Error ? error.message : "Could not autocomplete this puzzle.";
+    messageElement.classList.remove("success");
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function setAuthMode(mode) {
   authMode = mode;
   const isSignup = mode === "signup";
@@ -903,6 +961,7 @@ async function refreshSession(session) {
   }
   authSession = session;
   updateAccountStatus();
+  updateAutocompleteAccess();
   if (authSession) await syncCasualCloudSave(authSession, guestSave);
   if (authSession && pendingRankedSize) {
     const size = pendingRankedSize;
@@ -1064,6 +1123,7 @@ if (supabaseClient) {
 }
 
 document.querySelector("#new-puzzle").addEventListener("click", newPuzzle);
+document.querySelector("#autocomplete-button").addEventListener("click", autocompletePuzzle);
 sizeSelect.addEventListener("change", newPuzzle);
 difficultyButtons.forEach(button => button.addEventListener("click", () => {
   difficulty = button.dataset.difficulty;
