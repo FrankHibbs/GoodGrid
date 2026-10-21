@@ -9,13 +9,11 @@ body { overflow-x: clip; }
 .topbar {
   position: relative;
   isolation: isolate;
-  left: 50%;
-  width: 100vw;
-  padding-left: clamp(15px, 2vw, 32px);
-  padding-right: clamp(15px, 2vw, 32px);
+  width: 100%;
+  padding-left: clamp(24px, 2.4vw, 56px);
+  padding-right: clamp(24px, 2.4vw, 56px);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  transform: translateX(-50%);
   border-bottom-color: transparent;
 }
 
