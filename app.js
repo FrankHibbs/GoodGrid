@@ -230,13 +230,39 @@ function renderSymbolPad(complete) {
 }
 
 function saveHistory(index) {
-  history.push({ index, value: values[index], notes: [...notes[index]] });
+  const entry = { index, value: values[index], notes: [...notes[index]], removedPeerNotes: [] };
+  history.push(entry);
   undoButton.disabled = false;
+  return entry;
+}
+
+function removePeerNotes(index, value) {
+  const row = Math.floor(index / side);
+  const column = index % side;
+  const boxRow = Math.floor(row / boxSize);
+  const boxColumn = Math.floor(column / boxSize);
+  const removed = [];
+
+  for (let peer = 0; peer < values.length; peer += 1) {
+    if (peer === index || values[peer] !== -1 || !notes[peer].has(value)) continue;
+    const peerRow = Math.floor(peer / side);
+    const peerColumn = peer % side;
+    const sharesRow = peerRow === row;
+    const sharesColumn = peerColumn === column;
+    const sharesBox = Math.floor(peerRow / boxSize) === boxRow
+      && Math.floor(peerColumn / boxSize) === boxColumn;
+    if (!sharesRow && !sharesColumn && !sharesBox) continue;
+
+    removed.push({ index: peer, value });
+    notes[peer].delete(value);
+  }
+
+  return removed;
 }
 
 function enterValue(value) {
   if (selected < 0 || completed || rankedSubmissionPending || rankedPausePending || puzzle[Math.floor(selected / side)][selected % side] !== -1) return;
-  saveHistory(selected);
+  const entry = saveHistory(selected);
   rankedWrongCells.delete(selected);
   if (notesToggle.checked) {
     if (notes[selected].has(value)) notes[selected].delete(value);
@@ -244,6 +270,7 @@ function enterValue(value) {
   } else {
     values[selected] = value;
     notes[selected].clear();
+    entry.removedPeerNotes = removePeerNotes(selected, value);
   }
   renderCells();
   scheduleRankedProgressSave();
@@ -269,6 +296,9 @@ function undo() {
   if (!previous) return;
   values[previous.index] = previous.value;
   notes[previous.index] = new Set(previous.notes);
+  for (const removed of previous.removedPeerNotes || []) {
+    if (values[removed.index] === -1) notes[removed.index].add(removed.value);
+  }
   selected = previous.index;
   undoButton.disabled = history.length === 0;
   renderCells();
@@ -1161,7 +1191,10 @@ document.addEventListener("keydown", event => {
     const nextRow = (row + dr + side) % side;
     const nextColumn = (column + dc + side) % side;
     selectCell(nextRow * side + nextColumn);
-  } else if (event.key === "Backspace" || event.key === "Delete") {
+  } else if (event.key === "Backspace") {
+    event.preventDefault();
+    undo();
+  } else if (event.key === "Delete") {
     event.preventDefault();
     eraseSelected();
   } else {
