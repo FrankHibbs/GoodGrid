@@ -1,17 +1,24 @@
-import { useRouter } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { Card, Heading, Screen } from '@/components/screen';
 import { palette } from '@/constants/goodgrid';
+import { useAuth } from '@/components/auth-provider';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { session } = useAuth();
   const { width } = useWindowDimensions();
   const compact = width < 620;
   return (
     <Screen>
       <View style={[styles.hero, compact && styles.heroCompact]}>
         <Heading eyebrow="A PUZZLE FOR YOUR PACE" title="How would you like to play?" description="Take on today’s shared challenge or enjoy a puzzle at your own pace." />
+        <Link href="/account" asChild>
+          <Pressable accessibilityRole="button" style={styles.accountLink}>
+            <Text style={styles.accountLinkText}>{session ? `Signed in as ${session.user.user_metadata.username || session.user.email}` : 'Sign in to sync your puzzles'}</Text>
+          </Pressable>
+        </Link>
         <View style={styles.choices}>
           <Pressable accessibilityRole="button" onPress={() => router.push('/ranked')} style={[styles.choiceCard, compact && styles.choiceCardCompact]}>
               <View style={styles.choiceIcon}><Text style={styles.iconText}>✳</Text></View>
@@ -38,6 +45,8 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   hero: { paddingTop: 40 },
   heroCompact: { paddingTop: 16 },
+  accountLink: { alignSelf: 'flex-end', marginTop: -18, marginBottom: 22, paddingVertical: 8, paddingHorizontal: 12 },
+  accountLinkText: { color: palette.sageDark, fontWeight: '600', fontSize: 14 },
   choices: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 18, marginBottom: 20, minWidth: 0, alignSelf: 'stretch' },
   choiceCard: { flexGrow: 1, flexBasis: 300, minHeight: 210, backgroundColor: palette.paper, borderWidth: 1.5, borderColor: '#ddd8ca', borderRadius: 22, padding: 26, justifyContent: 'center', shadowColor: '#414837', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.06, shadowRadius: 16, elevation: 2 },
   choiceCardCompact: { width: '100%', flexBasis: '100%', minHeight: 156, padding: 21 },

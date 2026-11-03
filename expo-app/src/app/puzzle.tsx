@@ -5,6 +5,8 @@ import { AppState, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, Vie
 import { BackLink, Card, Screen } from '@/components/screen';
 import { palette, type Difficulty } from '@/constants/goodgrid';
 import { loadCasualProgress, saveCasualProgress, type CasualProgress, type PuzzleData, type PuzzleSnapshot } from '@/lib/casual-progress';
+import { loadCloudCasualProgress, saveCloudCasualProgress } from '@/lib/casual-sync';
+import { useAuth } from '@/components/auth-provider';
 
 const SYMBOLS = '123456789ABCDEFGHIJKLMNOP'.split('');
 const CLUES: Record<Difficulty, Record<number, number>> = {
@@ -45,6 +47,7 @@ export default function PuzzleScreen() {
 }
 
 function PuzzleGame({ boxSize, difficulty, mode }: { boxSize: number; difficulty: Difficulty; mode: 'casual' | 'ranked' }) {
+  const { session, loading: authLoading } = useAuth();
   const [activeBoxSize, setActiveBoxSize] = useState(boxSize);
   const [activeDifficulty, setActiveDifficulty] = useState(difficulty);
   const [settingsBoxSize, setSettingsBoxSize] = useState(boxSize);
@@ -60,9 +63,16 @@ function PuzzleGame({ boxSize, difficulty, mode }: { boxSize: number; difficulty
   const [noteMode, setNoteMode] = useState(false);
   const [showMistakes, setShowMistakes] = useState(true);
   const [completed, setCompleted] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
+  const [syncRetry, setSyncRetry] = useState(0);
   const [hydrated, setHydrated] = useState(mode !== 'casual');
   const [appActive, setAppActive] = useState(AppState.currentState === 'active');
   const progressRef = useRef<CasualProgress | null>(null);
+  const cloudReadyUserId = useRef<string | null>(null);
+  const cloudSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentUserId = useRef<string | null>(session?.user.id ?? null);
+  const loadedLocalProgress = useRef<CasualProgress | null>(null);
+  const localPuzzleChanged = useRef(false);
   const isFocused = useIsFocused();
   const side = activeBoxSize * activeBoxSize;
   const { width } = useWindowDimensions();
@@ -77,6 +87,7 @@ function PuzzleGame({ boxSize, difficulty, mode }: { boxSize: number; difficulty
     let cancelled = false;
     void loadCasualProgress().then(progress => {
       if (cancelled) return;
+      loadedLocalProgress.current = progress;
       if (progress) {
         setActiveBoxSize(progress.boxSize as 3 | 4 | 5);
         setActiveDifficulty(progress.difficulty);
@@ -111,7 +122,7 @@ function PuzzleGame({ boxSize, difficulty, mode }: { boxSize: number; difficulty
   }, [mode]);
 
   useEffect(() => {
-    if (!hydrated || mode !== 'casual') return;
+    if (!hydrated || authLoading || mode !== 'casual') return;
     const progress: CasualProgress = {
       version: 1,
       boxSize: activeBoxSize,
@@ -123,10 +134,103 @@ function PuzzleGame({ boxSize, difficulty, mode }: { boxSize: number; difficulty
       seconds,
       showMistakes,
       completed,
+      savedAt: Date.now(),
     };
     progressRef.current = progress;
     void saveCasualProgress(progress);
-  }, [activeBoxSize, activeDifficulty, completed, history, hydrated, mode, notes, puzzle, seconds, showMistakes, values]);
+  }, [activeBoxSize, activeDifficulty, authLoading, completed, history, hydrated, mode, notes, puzzle, seconds, showMistakes, values]);
+
+  useEffect(() => {
+    currentUserId.current = session?.user.id ?? null;
+    cloudReadyUserId.current = null;
+    localPuzzleChanged.current = false;
+    if (cloudSaveTimer.current) clearTimeout(cloudSaveTimer.current);
+    cloudSaveTimer.current = null;
+  }, [session?.user.id]);
+
+  useEffect(() => {
+    if (authLoading || mode !== 'casual' || !hydrated || !session?.user || cloudReadyUserId.current === session.user.id) return;
+
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    const user = session.user;
+    void (async () => {
+      try {
+        const remote = await loadCloudCasualProgress(user);
+        if (cancelled || currentUserId.current !== user.id) return;
+        const storedLocal = loadedLocalProgress.current ?? await loadCasualProgress();
+        const local = progressRef.current ?? storedLocal;
+        const localSavedAt = localPuzzleChanged.current
+          ? Number(local?.savedAt) || 0
+          : Number(loadedLocalProgress.current?.savedAt) || 0;
+        const shouldUseRemote = Boolean(remote && (!local || (!localPuzzleChanged.current && (!loadedLocalProgress.current || (Number(remote.savedAt) || 0) > localSavedAt)) || (localPuzzleChanged.current && (Number(remote.savedAt) || 0) > localSavedAt)));
+        if (remote && shouldUseRemote) {
+          cloudReadyUserId.current = user.id;
+          progressRef.current = remote;
+          setActiveBoxSize(remote.boxSize as 3 | 4 | 5);
+          setActiveDifficulty(remote.difficulty);
+          setSettingsBoxSize(remote.boxSize);
+          setSettingsDifficulty(remote.difficulty);
+          setPuzzle(remote.puzzle);
+          setValues(remote.values);
+          setNotes(remote.notes);
+          setHistory(remote.history);
+          setSeconds(Math.floor(remote.seconds));
+          setShowMistakes(remote.showMistakes);
+          setCompleted(remote.completed);
+          setMessage(remote.completed ? 'Puzzle complete! A new puzzle is ready.' : '');
+          await saveCasualProgress(remote);
+          setSyncMessage('Progress synced to your account.');
+        } else if (local) {
+          cloudReadyUserId.current = user.id;
+          if (!remote || (Number(local.savedAt) || 0) >= (Number(remote.savedAt) || 0)) {
+            await saveCloudCasualProgress(user, local);
+          }
+          setSyncMessage('Progress synced to your account.');
+        } else {
+          cloudReadyUserId.current = user.id;
+          setSyncMessage('Your progress will sync as you play.');
+        }
+      } catch (syncError) {
+        if (cancelled || currentUserId.current !== user.id) return;
+        setSyncMessage('Could not sync right now. Your puzzle is still saved on this device.');
+        console.warn('Could not synchronize casual puzzle progress.', syncError);
+        retryTimer = setTimeout(() => setSyncRetry(count => count + 1), 15000);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [authLoading, hydrated, mode, session?.user, syncRetry]);
+
+  useEffect(() => {
+    const user = session?.user;
+    if (!user || authLoading || mode !== 'casual' || !hydrated || cloudReadyUserId.current !== user.id || cloudSaveTimer.current) return;
+    cloudSaveTimer.current = setTimeout(() => {
+      cloudSaveTimer.current = null;
+      const latest = progressRef.current;
+      if (!latest || currentUserId.current !== user.id) return;
+      void saveCloudCasualProgress(user, latest).then(() => {
+        if (currentUserId.current === user.id) setSyncMessage('Progress synced to your account.');
+      }).catch(syncError => {
+        if (currentUserId.current === user.id) setSyncMessage('Could not sync right now. Your puzzle is still saved on this device.');
+        console.warn('Could not save casual puzzle progress to Supabase.', syncError);
+      });
+    }, 5000);
+  }, [activeBoxSize, activeDifficulty, authLoading, completed, history, hydrated, mode, notes, puzzle, seconds, session?.user, showMistakes, values]);
+
+  useEffect(() => {
+    if (session?.user.id) return;
+    cloudReadyUserId.current = null;
+    if (cloudSaveTimer.current) clearTimeout(cloudSaveTimer.current);
+    cloudSaveTimer.current = null;
+  }, [session?.user.id]);
+
+  useEffect(() => () => {
+    if (cloudSaveTimer.current) clearTimeout(cloudSaveTimer.current);
+  }, []);
 
   useFocusEffect(useCallback(() => () => {
     if (mode === 'casual' && progressRef.current) void saveCasualProgress(progressRef.current);
@@ -153,6 +257,7 @@ function PuzzleGame({ boxSize, difficulty, mode }: { boxSize: number; difficulty
 
   function undo() {
     if (!history.length) return;
+    localPuzzleChanged.current = true;
     const previous = history[history.length - 1];
     setValues(previous.values);
     setNotes(previous.notes);
@@ -164,6 +269,7 @@ function PuzzleGame({ boxSize, difficulty, mode }: { boxSize: number; difficulty
   function eraseSelected() {
     if (selected === null || puzzle.clues[selected] !== -1) return;
     if (values[selected] === -1 && notes[selected].length === 0) return;
+    localPuzzleChanged.current = true;
     rememberCurrent();
     setValues(current => current.map((value, index) => index === selected ? -1 : value));
     setNotes(current => current.map((cellNotes, index) => index === selected ? [] : cellNotes));
@@ -175,6 +281,7 @@ function PuzzleGame({ boxSize, difficulty, mode }: { boxSize: number; difficulty
     if (selected === null || puzzle.clues[selected] !== -1) return;
     if (noteMode) {
       if (values[selected] !== -1) return;
+      localPuzzleChanged.current = true;
       rememberCurrent();
       setNotes(current => current.map((cellNotes, index) => {
         if (index !== selected) return cellNotes;
@@ -184,6 +291,7 @@ function PuzzleGame({ boxSize, difficulty, mode }: { boxSize: number; difficulty
     }
 
     rememberCurrent();
+    localPuzzleChanged.current = true;
     const nextValues = [...values];
     nextValues[selected] = value;
     const boxRow = Math.floor(Math.floor(selected / side) / activeBoxSize);
@@ -212,6 +320,7 @@ function PuzzleGame({ boxSize, difficulty, mode }: { boxSize: number; difficulty
   }
 
   function startPuzzle(nextBoxSize: number, nextDifficulty: Difficulty) {
+    localPuzzleChanged.current = true;
     const nextPuzzle = makePuzzle(nextBoxSize, nextDifficulty);
     setActiveBoxSize(nextBoxSize as 3 | 4 | 5);
     setActiveDifficulty(nextDifficulty);
@@ -339,6 +448,7 @@ function PuzzleGame({ boxSize, difficulty, mode }: { boxSize: number; difficulty
           <Pressable accessibilityRole="button" onPress={eraseSelected} style={[styles.numberButton, compact && styles.numberButtonCompact, styles.erase]}><Text style={styles.eraseText}>Erase</Text></Pressable>
         </View>
         {message ? <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text> : null}
+        {mode === 'casual' && session && syncMessage ? <Text accessibilityLiveRegion="polite" style={styles.syncMessage}>{syncMessage}</Text> : null}
         {mode === 'casual' && <Pressable onPress={resetPuzzle} style={styles.newPuzzle}><Text style={styles.newPuzzleText}>↻ New puzzle</Text></Pressable>}
       </Card>
       <Modal transparent visible={settingsOpen} animationType="fade" onRequestClose={() => setSettingsOpen(false)}>
@@ -419,6 +529,7 @@ const styles = StyleSheet.create({
   erase: { backgroundColor: '#f3f1e9', borderColor: palette.border },
   eraseText: { color: palette.sageDark, fontWeight: '600' },
   message: { marginTop: 14, color: palette.sageDark, fontWeight: '700' },
+  syncMessage: { marginTop: 8, color: palette.muted, fontSize: 12 },
   newPuzzle: { alignSelf: 'flex-start', marginTop: 15, paddingVertical: 8, paddingHorizontal: 12 },
   newPuzzleText: { color: palette.sageDark, fontWeight: '700' },
   menuButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.paper },

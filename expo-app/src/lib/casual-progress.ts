@@ -16,6 +16,7 @@ export type CasualProgress = {
   seconds: number;
   showMistakes: boolean;
   completed: boolean;
+  savedAt?: number;
 };
 
 const STORAGE_KEY = 'goodgrid.casual-progress.v1';
@@ -78,6 +79,7 @@ export async function loadCasualProgress(): Promise<CasualProgress | null> {
 
     return {
       ...progress,
+      savedAt: Number.isFinite(progress.savedAt) ? progress.savedAt : 0,
       history: progress.history.slice(-50),
       showMistakes: progress.showMistakes !== false,
       completed: Boolean(progress.completed),
@@ -89,8 +91,9 @@ export async function loadCasualProgress(): Promise<CasualProgress | null> {
 
 export function saveCasualProgress(progress: CasualProgress) {
   try {
-    return writeStoredValue(JSON.stringify(progress));
+    const savedProgress = { ...progress, savedAt: Date.now() };
+    return writeStoredValue(JSON.stringify(savedProgress)).then(() => savedProgress);
   } catch {
-    return Promise.resolve();
+    return Promise.resolve(progress);
   }
 }
